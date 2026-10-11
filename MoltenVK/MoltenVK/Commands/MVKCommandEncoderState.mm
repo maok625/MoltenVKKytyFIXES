@@ -1827,8 +1827,14 @@ void MVKCommandEncoderState::pushDescriptorSet(VkPipelineBindPoint bindPoint, MV
 	assert(layout->pushDescriptor() == set);
 	if (MVKVulkanCommonEncoderState* state = getVkEncoderState(bindPoint)) [[likely]] {
 		MVKDescriptorSetLayout* dsl = layout->getDescriptorSetLayout(set);
+		state->_pushDescriptor.cpuBufferSize = dsl->cpuSize();
 		state->ensurePushDescriptorSize(dsl->cpuSize());
 		mvkPushDescriptorSet(state->_pushDescriptor.cpuBuffer, dsl, writeCount, writes);
+
+		// Push writes also change metadata consumed by implicit buffer-size and texture-swizzle buffers.
+		// Rebind this set to regenerate that metadata and invalidate cached Metal descriptor state.
+		MVKDescriptorSet* pushSet = &state->_pushDescriptor;
+		bindDescriptorSets(bindPoint, layout, set, 1, &pushSet, 0, nullptr);
 	}
 }
 
@@ -1836,8 +1842,13 @@ void MVKCommandEncoderState::pushDescriptorSet(MVKDescriptorUpdateTemplate* upda
 	assert(layout->pushDescriptor() == set);
 	if (MVKVulkanCommonEncoderState* state = getVkEncoderState(updateTemplate->getBindPoint())) [[likely]] {
 		MVKDescriptorSetLayout* dsl = layout->getDescriptorSetLayout(set);
+		state->_pushDescriptor.cpuBufferSize = dsl->cpuSize();
 		state->ensurePushDescriptorSize(dsl->cpuSize());
 		mvkPushDescriptorSetTemplate(state->_pushDescriptor.cpuBuffer, dsl, updateTemplate, data);
+
+		// Keep descriptor-template writes consistent with ordinary push descriptor writes.
+		MVKDescriptorSet* pushSet = &state->_pushDescriptor;
+		bindDescriptorSets(updateTemplate->getBindPoint(), layout, set, 1, &pushSet, 0, nullptr);
 	}
 }
 
