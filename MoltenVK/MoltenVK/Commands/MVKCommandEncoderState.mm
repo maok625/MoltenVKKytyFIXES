@@ -1829,6 +1829,13 @@ void MVKCommandEncoderState::pushDescriptorSet(VkPipelineBindPoint bindPoint, MV
 		MVKDescriptorSetLayout* dsl = layout->getDescriptorSetLayout(set);
 		state->ensurePushDescriptorSize(dsl->cpuSize());
 		mvkPushDescriptorSet(state->_pushDescriptor.cpuBuffer, dsl, writeCount, writes);
+
+		// Push descriptors bypass vkCmdBindDescriptorSets(), but their derived
+		// shader metadata (including buffer sizes used by OpArrayLength) is
+		// built by that path. Refresh the affected set after every push update.
+		MVKDescriptorSet* pushSet = &state->_pushDescriptor;
+		const uint32_t unusedDynamicOffset = 0;
+		bindDescriptorSets(bindPoint, layout, set, 1, &pushSet, 0, &unusedDynamicOffset);
 	}
 }
 
@@ -1838,6 +1845,12 @@ void MVKCommandEncoderState::pushDescriptorSet(MVKDescriptorUpdateTemplate* upda
 		MVKDescriptorSetLayout* dsl = layout->getDescriptorSetLayout(set);
 		state->ensurePushDescriptorSize(dsl->cpuSize());
 		mvkPushDescriptorSetTemplate(state->_pushDescriptor.cpuBuffer, dsl, updateTemplate, data);
+
+		// Keep template-based pushes consistent with vkCmdPushDescriptorSetKHR.
+		MVKDescriptorSet* pushSet = &state->_pushDescriptor;
+		const uint32_t unusedDynamicOffset = 0;
+		bindDescriptorSets(updateTemplate->getBindPoint(), layout, set, 1,
+		                   &pushSet, 0, &unusedDynamicOffset);
 	}
 }
 
